@@ -1,6 +1,5 @@
 package org.redpill.alfresco.s3;
 
-import com.amazonaws.services.s3.AmazonS3;
 import io.findify.s3mock.S3Mock;
 import java.util.Random;
 import org.alfresco.repo.content.ContentContext;
@@ -14,6 +13,7 @@ import org.junit.Before;
 import org.junit.Test;
 import org.redpill.alfresco.test.AbstractComponentIT;
 import org.springframework.context.ApplicationContext;
+import software.amazon.awssdk.services.s3.S3Client;
 
 /**
  *
@@ -42,7 +42,7 @@ public class S3CachingContentStoreIT extends AbstractComponentIT {
     s3ContentStoreImpl.setBucketName(bucket);
     s3ContentStoreImpl.setEndpoint("http://localhost:" + randomPort);
     s3ContentStoreImpl.testInit();
-    AmazonS3 s3Client = s3ContentStoreImpl.getS3Client();
+    S3Client s3Client = s3ContentStoreImpl.getS3Client();
     s3Client.createBucket(bucket);
 
     cachingContentStore = (ContentStore) ctx.getBean("redpill.defaultCachedS3BackedContentStore");
@@ -50,7 +50,7 @@ public class S3CachingContentStoreIT extends AbstractComponentIT {
 
   @After
   public void tearDown() {
-    AmazonS3 s3Client = s3ContentStoreImpl.getS3Client();
+    S3Client s3Client = s3ContentStoreImpl.getS3Client();
     s3Client.deleteBucket(bucket);
     api.stop(); 
   }

@@ -1,13 +1,14 @@
 package org.redpill.alfresco.s3;
 
-import com.amazonaws.services.s3.transfer.TransferManager;
-import com.amazonaws.services.s3.transfer.Upload;
 import org.alfresco.service.cmr.repository.ContentIOException;
 import org.alfresco.service.cmr.repository.ContentStreamListener;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 
 import java.io.File;
+import software.amazon.awssdk.services.s3.model.PutObjectRequest;
+import software.amazon.awssdk.transfer.s3.model.FileUpload;
+import software.amazon.awssdk.transfer.s3.model.UploadFileRequest;
 
 /**
  * Stream listener which is used to copy the temp file contents into S3
@@ -34,15 +35,19 @@ public class S3WriteStreamListener implements ContentStreamListener {
     if (LOG.isDebugEnabled()) {
       LOG.debug("Writing to s3://" + writer.getBucketName() + "/" + writer.getKey());
     }
-    TransferManager transferManager = writer.getTransferManager();
-
-    Upload upload = transferManager.upload(writer.getBucketName(), writer.getKey(), writer.getTempFile());
-    //To have transactional consistency it is necessary to wait for the upload to go through before allowing the transaction to commit!
     try {
       if (LOG.isTraceEnabled()) {
         LOG.trace("Waiting for upload result for bucket " + writer.getBucketName() + " with key " + writer.getKey());
       }
-      upload.waitForUploadResult();
+      FileUpload upload = writer.getTransferManager().uploadFile(
+          UploadFileRequest.builder()
+              .putObjectRequest(PutObjectRequest.builder()
+                  .bucket(writer.getBucketName())
+                  .key(writer.getKey())
+                  .build())
+              .source(writer.getTempFile().toPath())
+              .build());
+      upload.completionFuture().join();
       if (LOG.isTraceEnabled()) {
         LOG.trace("Upload completed for bucket " + writer.getBucketName() + " with key " + writer.getKey());
       }

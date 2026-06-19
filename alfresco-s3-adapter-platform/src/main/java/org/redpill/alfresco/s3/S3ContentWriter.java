@@ -1,7 +1,5 @@
 package org.redpill.alfresco.s3;
 
-import com.amazonaws.services.s3.AmazonS3;
-import com.amazonaws.services.s3.transfer.TransferManager;
 import org.alfresco.repo.content.AbstractContentWriter;
 import org.alfresco.service.cmr.repository.ContentIOException;
 import org.alfresco.service.cmr.repository.ContentReader;
@@ -15,6 +13,8 @@ import java.io.FileOutputStream;
 import java.io.OutputStream;
 import java.nio.channels.Channels;
 import java.nio.channels.WritableByteChannel;
+import software.amazon.awssdk.services.s3.S3Client;
+import software.amazon.awssdk.transfer.s3.S3TransferManager;
 
 /**
  * S3 content writer
@@ -25,14 +25,14 @@ public class S3ContentWriter extends AbstractContentWriter {
 
   private static final Log LOG = LogFactory.getLog(S3ContentWriter.class);
 
-  private final TransferManager transferManager;
-  private final AmazonS3 client;
+  private final S3Client client;
+  private final S3TransferManager transferManager;
   private final String key;
   private final String bucketName;
   private File tempFile;
   private long size;
 
-  public S3ContentWriter(String bucketName, String key, String contentUrl, ContentReader existingContentReader, AmazonS3 client, TransferManager transferManager) {
+  public S3ContentWriter(String bucketName, String key, String contentUrl, ContentReader existingContentReader, S3Client client, S3TransferManager transferManager) {
     super(contentUrl, existingContentReader);
     this.key = key;
     this.client = client;
@@ -73,10 +73,6 @@ public class S3ContentWriter extends AbstractContentWriter {
     this.size = size;
   }
 
-  public TransferManager getTransferManager() {
-    return transferManager;
-  }
-
   public String getBucketName() {
     return bucketName;
   }
@@ -87,5 +83,13 @@ public class S3ContentWriter extends AbstractContentWriter {
 
   public File getTempFile() {
     return tempFile;
+  }
+
+  public S3Client getClient() {
+    return client;
+  }
+
+  public S3TransferManager getTransferManager() {
+    return transferManager;
   }
 }

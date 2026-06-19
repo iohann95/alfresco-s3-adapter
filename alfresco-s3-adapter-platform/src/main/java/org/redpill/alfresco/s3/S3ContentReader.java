@@ -1,8 +1,5 @@
 package org.redpill.alfresco.s3;
 
-import com.amazonaws.services.s3.AmazonS3;
-import com.amazonaws.services.s3.model.ObjectMetadata;
-import com.amazonaws.services.s3.model.S3Object;
 import org.alfresco.repo.content.AbstractContentReader;
 import org.alfresco.service.cmr.repository.ContentIOException;
 import org.alfresco.service.cmr.repository.ContentReader;
@@ -13,6 +10,12 @@ import org.apache.commons.logging.LogFactory;
 import java.io.IOException;
 import java.nio.channels.Channels;
 import java.nio.channels.ReadableByteChannel;
+import software.amazon.awssdk.core.ResponseInputStream;
+import software.amazon.awssdk.services.s3.S3Client;
+import software.amazon.awssdk.services.s3.model.GetObjectRequest;
+import software.amazon.awssdk.services.s3.model.GetObjectResponse;
+import software.amazon.awssdk.services.s3.model.HeadObjectRequest;
+import software.amazon.awssdk.services.s3.model.HeadObjectResponse;
 
 /**
  * S3 Content Reader
@@ -24,10 +27,10 @@ public class S3ContentReader extends AbstractContentReader implements AutoClosea
     private static final Log LOG = LogFactory.getLog(S3ContentReader.class);
 
     private final String key;
-    private final AmazonS3 s3Client;
+    private final S3Client s3Client;
     private final String bucket;
-    private S3Object s3Object;
-    private ObjectMetadata s3ObjectMetadata;
+    private ResponseInputStream<GetObjectResponse> s3Object;
+    private HeadObjectResponse s3ObjectMetadata;
 
     /**
      * @param key        the key to use when looking up data
@@ -36,7 +39,7 @@ public class S3ContentReader extends AbstractContentReader implements AutoClosea
      *                   the store
      * @param bucket     the s3 bucket name
      */
-    protected S3ContentReader(String key, String contentUrl, AmazonS3 s3Client, String bucket) {
+    protected S3ContentReader(String key, String contentUrl, S3Client s3Client, String bucket) {
         super(contentUrl);
         this.key = key;
         this.s3Client = s3Client;
@@ -81,12 +84,12 @@ public class S3ContentReader extends AbstractContentReader implements AutoClosea
             }
 
             if (s3Object != null) {
-                s3ObjectMetadata = s3Object.getObjectMetadata();
+                s3ObjectMetadata = s3Client.headObject(HeadObjectRequest.builder().bucket(bucket).key(key).build());
             } else {
                 if (LOG.isDebugEnabled()) {
                     LOG.debug("GETTING OBJECT METADATA - BUCKET: " + bucket + " KEY: " + key);
                 }
-                s3ObjectMetadata = s3Client.getObjectMetadata(bucket, key);
+                s3ObjectMetadata = s3Client.headObject(HeadObjectRequest.builder().bucket(bucket).key(key).build());
             }
         }
     }
@@ -124,7 +127,7 @@ public class S3ContentReader extends AbstractContentReader implements AutoClosea
                 }
             };
             this.addListener(s3StreamListener);
-            return Channels.newChannel(s3Object.getObjectContent());
+            return Channels.newChannel(s3Object);
         } catch (Exception e) {
             throw new ContentIOException("Unable to retrieve content object from S3", e);
         }
@@ -154,7 +157,7 @@ public class S3ContentReader extends AbstractContentReader implements AutoClosea
             return 0L;
         }
 
-        return s3ObjectMetadata.getLastModified().getTime();
+        return s3ObjectMetadata.lastModified().toEpochMilli();
 
     }
 
@@ -170,18 +173,18 @@ public class S3ContentReader extends AbstractContentReader implements AutoClosea
             return 0L;
         }
 
-        return s3ObjectMetadata.getContentLength();
+        return s3ObjectMetadata.contentLength();
     }
 
-    private S3Object getObject() {
+    private ResponseInputStream<GetObjectResponse> getObject() {
 
-        S3Object object = null;
+        ResponseInputStream<GetObjectResponse> object = null;
 
         try {
             if (LOG.isTraceEnabled()) {
                 LOG.trace("GETTING OBJECT - BUCKET: " + bucket + " KEY: " + key);
             }
-            object = s3Client.getObject(bucket, key);
+            object = s3Client.getObject(GetObjectRequest.builder().bucket(bucket).key(key).build());
         } catch (Exception e) {
             LOG.error("Unable to fetch S3 Object", e);
         }

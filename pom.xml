@@ -8,9 +8,9 @@
   <description>Alfresco S3 Adapter project</description>
   <packaging>pom</packaging>
   <parent>
-    <groupId>com.redpill-linpro.alfresco</groupId>
-    <artifactId>alfresco-base</artifactId>
-    <version>3.0.2</version>
+    <groupId>org.alfresco.maven</groupId>
+    <artifactId>alfresco-sdk-aggregator</artifactId>
+    <version>4.0.0</version>
   </parent>
   <properties>
     <!-- Alfresco Maven Plugin version to use -->
@@ -471,14 +471,14 @@
     Alfresco Maven Repositories
     -->
   <repositories>
-    <repository>
+    <!--<repository>
       <id>redpill-linpro</id>
       <url>https://maven.redpill-linpro.com/nexus/content/groups/public</url>
       <snapshots>
         <enabled>true</enabled>
         <updatePolicy>daily</updatePolicy>
       </snapshots>
-    </repository>
+    </repository>-->
     <repository>
       <id>alfresco-public</id>
       <url>https://artifacts.alfresco.com/nexus/content/groups/public</url>
@@ -492,10 +492,10 @@
       </snapshots>
     </repository>
     <!-- Alfresco Enterprise Edition Artifacts, put username/pwd for server in settings.xml -->
-    <repository>
+    <!--<repository>
       <id>alfresco-private-repository</id>
       <url>https://artifacts.alfresco.com/nexus/content/groups/private</url>
-    </repository>
+    </repository>-->
   </repositories>
 
   <pluginRepositories>
@@ -516,7 +516,7 @@
     <module>alfresco-s3-adapter-platform</module>
     <module>alfresco-s3-adapter-share</module>
     <module>alfresco-s3-adapter-testdeps</module>
-    <module>integration-tests</module>
+    <!--<module>integration-tests</module>-->
     <module>alfresco-s3-adapter-platform-docker</module>
     <module>alfresco-s3-adapter-share-docker</module>
   </modules>

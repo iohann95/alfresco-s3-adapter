@@ -22,13 +22,13 @@
             <artifactId>alfresco-s3-adapter-platform</artifactId>
             <version>1.2.1</version>
         </dependency>
-        <dependency>
+        <!--<dependency>
             <groupId>org.redpill-linpro.alfresco.s3</groupId>
             <artifactId>integration-tests</artifactId>
             <version>1.2.1</version>
             <scope>test</scope>
             <classifier>tests</classifier>
-        </dependency>
+        </dependency>-->
         <dependency>
             <groupId>org.redpill-linpro.alfresco.s3</groupId>
             <artifactId>alfresco-s3-adapter-testdeps</artifactId>

@@ -1,16 +1,5 @@
 package org.redpill.alfresco.s3;
 
-import com.amazonaws.ClientConfiguration;
-import com.amazonaws.auth.AWSCredentials;
-import com.amazonaws.auth.AWSStaticCredentialsProvider;
-import com.amazonaws.auth.AnonymousAWSCredentials;
-import com.amazonaws.auth.BasicAWSCredentials;
-import com.amazonaws.auth.profile.ProfileCredentialsProvider;
-import com.amazonaws.client.builder.AwsClientBuilder.EndpointConfiguration;
-import com.amazonaws.services.s3.AmazonS3ClientBuilder;
-import com.amazonaws.services.s3.AmazonS3;
-import com.amazonaws.services.s3.transfer.TransferManager;
-import com.amazonaws.services.s3.transfer.TransferManagerBuilder;
 import org.alfresco.repo.content.AbstractContentStore;
 import org.alfresco.repo.content.ContentStore;
 import org.alfresco.repo.content.ContentStoreCreatedEvent;
@@ -31,12 +20,30 @@ import org.springframework.context.ApplicationListener;
 import org.springframework.context.event.ContextRefreshedEvent;
 
 import java.io.Serializable;
+import java.net.URI;
+import java.time.Duration;
 import java.util.Calendar;
 import java.util.Collections;
 import java.util.GregorianCalendar;
 import java.util.Map;
 import org.springframework.beans.factory.InitializingBean;
 import org.springframework.util.Assert;
+import software.amazon.awssdk.auth.credentials.AnonymousCredentialsProvider;
+import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
+import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
+import software.amazon.awssdk.auth.credentials.ProfileCredentialsProvider;
+import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
+import software.amazon.awssdk.core.client.config.ClientOverrideConfiguration;
+import software.amazon.awssdk.http.apache.ApacheHttpClient;
+import software.amazon.awssdk.regions.Region;
+import software.amazon.awssdk.core.retry.RetryPolicy;
+import software.amazon.awssdk.services.s3.S3AsyncClient;
+import software.amazon.awssdk.services.s3.S3AsyncClientBuilder;
+import software.amazon.awssdk.services.s3.S3Client;
+import software.amazon.awssdk.services.s3.S3ClientBuilder;
+import software.amazon.awssdk.services.s3.S3Configuration;
+import software.amazon.awssdk.services.s3.model.DeleteObjectRequest;
+import software.amazon.awssdk.transfer.s3.S3TransferManager;
 
 /**
  * A s3 content store
@@ -49,8 +56,9 @@ public class S3ContentStore extends AbstractContentStore
   private static final Log LOG = LogFactory.getLog(S3ContentStore.class);
   private ApplicationContext applicationContext;
 
-  private AmazonS3 s3Client;
-  private TransferManager transferManager;
+  private S3Client s3Client;
+  private S3AsyncClient s3AsyncClient;
+  private S3TransferManager transferManager;
 
   private String accessKey;
   private String secretKey;
@@ -65,8 +73,6 @@ public class S3ContentStore extends AbstractContentStore
   private long multipartUploadThreshold = 16777216L;
 
   /**
-   * @see
-   * com.amazonaws.services.s3.transfer.TransferManagerConfiguration#multipartUploadThreshold
    * @param multipartUploadThreshold The multipart upload threshold
    */
   public void setMultipartUploadThreshold(long multipartUploadThreshold) {
@@ -74,7 +80,6 @@ public class S3ContentStore extends AbstractContentStore
   }
 
   /**
-   * @see com.amazonaws.ClientConfiguration#setConnectionTTL(long)
    * @param connectionTTL set TTL for connection
    */
   public void setConnectionTTL(long connectionTTL) {
@@ -82,7 +87,6 @@ public class S3ContentStore extends AbstractContentStore
   }
 
   /**
-   * @see com.amazonaws.ClientConfiguration#setMaxErrorRetry(int)
    * @param maxErrorRetry set max retries
    */
   public void setMaxErrorRetry(int maxErrorRetry) {
@@ -90,7 +94,6 @@ public class S3ContentStore extends AbstractContentStore
   }
 
   /**
-   * @see com.amazonaws.ClientConfiguration#setConnectionTimeout(int)
    * @param connectionTimeout set connection timeout
    */
   public void setConnectionTimeout(int connectionTimeout) {
@@ -115,7 +118,7 @@ public class S3ContentStore extends AbstractContentStore
    *
    * @return Returns a s3 client
    */
-  public AmazonS3 getS3Client() {
+  public S3Client getS3Client() {
     return s3Client;
   }
 
@@ -123,63 +126,74 @@ public class S3ContentStore extends AbstractContentStore
    * Initialize the content store
    */
   public void init() {
-    AWSCredentials credentials = null;
-    ClientConfiguration clientConfiguration = new ClientConfiguration();
+    AwsCredentialsProvider credentialsProvider;
     if (!StringUtils.isEmpty(signatureVersion)) {
       LOG.debug("Using client override for signatureVersion: " + signatureVersion);
-      clientConfiguration.setSignerOverride(signatureVersion);
     }
-
-    clientConfiguration.setConnectionTimeout(connectionTimeout);
-    clientConfiguration.setMaxErrorRetry(maxErrorRetry);
-    clientConfiguration.setConnectionTTL(connectionTTL);
 
     if (StringUtils.isNotBlank(this.accessKey) && StringUtils.isNotBlank(this.secretKey)) {
       LOG.debug("Found credentials in properties file");
-      credentials = new BasicAWSCredentials(this.accessKey, this.secretKey);
+      credentialsProvider = StaticCredentialsProvider.create(AwsBasicCredentials.create(this.accessKey, this.secretKey));
 
     } else {
       try {
         if (LOG.isDebugEnabled()) {
           LOG.debug("AWS Credentials not specified in properties, will fallback to credentials provider");
         }
-        credentials = new ProfileCredentialsProvider().getCredentials();
+        credentialsProvider = ProfileCredentialsProvider.create();
       } catch (Exception e) {
         LOG.error("Can not find AWS Credentials. Trying anonymous.", e);
-        credentials = new AnonymousAWSCredentials();
+        credentialsProvider = AnonymousCredentialsProvider.create();
       }
     }
+
+    ApacheHttpClient.Builder httpClientBuilder = ApacheHttpClient.builder()
+            .connectionTimeout(Duration.ofMillis(connectionTimeout))
+            .connectionTimeToLive(Duration.ofMillis(connectionTTL));
+
+        ClientOverrideConfiguration overrideConfiguration = ClientOverrideConfiguration.builder()
+          .retryPolicy(RetryPolicy.builder().numRetries(maxErrorRetry).build())
+          .build();
+
+            S3ClientBuilder s3Builder = S3Client.builder()
+            .credentialsProvider(credentialsProvider)
+            .httpClientBuilder(httpClientBuilder)
+            .overrideConfiguration(overrideConfiguration)
+            .serviceConfiguration(S3Configuration.builder().build());
+
+            S3AsyncClientBuilder s3AsyncBuilder = S3AsyncClient.builder()
+          .credentialsProvider(credentialsProvider)
+          .overrideConfiguration(overrideConfiguration)
+          .multipartEnabled(true)
+          .multipartConfiguration(conf -> conf.thresholdInBytes(multipartUploadThreshold))
+          .serviceConfiguration(S3Configuration.builder().build());
 
     if (!"".equals(endpoint)) {
       if (LOG.isDebugEnabled()) {
         LOG.debug("Using custom endpoint" + endpoint);
       }
-      EndpointConfiguration endpointConf = new EndpointConfiguration(endpoint, regionName);
-      AmazonS3ClientBuilder s3builder = AmazonS3ClientBuilder
-              .standard()
-              .withEndpointConfiguration(endpointConf)
-              .withCredentials(new AWSStaticCredentialsProvider(credentials))
-              .withClientConfiguration(clientConfiguration);
-      s3Client = s3builder.build();
+      s3Client = s3Builder
+              .endpointOverride(URI.create(endpoint))
+              .region(Region.of(regionName))
+              .build();
+            s3AsyncClient = s3AsyncBuilder
+              .endpointOverride(URI.create(endpoint))
+              .region(Region.of(regionName))
+              .build();
 
     } else {
       if (LOG.isDebugEnabled()) {
         LOG.debug("Using default Amazon S3 endpoint with region " + regionName);
       }
-
-      AmazonS3ClientBuilder s3builder = AmazonS3ClientBuilder
-              .standard()
-              .withRegion(regionName)
-              .withCredentials(new AWSStaticCredentialsProvider(credentials))
-              .withClientConfiguration(clientConfiguration);
-      s3Client = s3builder.build();
+      s3Client = s3Builder
+              .region(Region.of(regionName))
+              .build();
+      s3AsyncClient = s3AsyncBuilder
+              .region(Region.of(regionName))
+              .build();
     }
 
-    transferManager = TransferManagerBuilder
-            .standard()
-            .withS3Client(s3Client)
-            .withMultipartUploadThreshold(multipartUploadThreshold)
-            .build();
+    transferManager = S3TransferManager.builder().s3Client(s3AsyncClient).build();
   }
 
   /**
@@ -191,28 +205,34 @@ public class S3ContentStore extends AbstractContentStore
       LOG.debug("Using custom endpoint" + endpoint);
       LOG.debug("Using default Amazon S3 endpoint with region " + regionName);
     }
-    ClientConfiguration clientConfiguration = new ClientConfiguration();
+        ApacheHttpClient.Builder httpClientBuilder = ApacheHttpClient.builder()
+          .connectionTimeout(Duration.ofMillis(connectionTimeout))
+          .connectionTimeToLive(Duration.ofMillis(connectionTTL));
+
     if (!StringUtils.isEmpty(signatureVersion)) {
       if (LOG.isDebugEnabled()) {
         LOG.debug("Using client override for signatureVersion: " + signatureVersion);
       }
-      clientConfiguration.setSignerOverride(signatureVersion);
     }
 
-    clientConfiguration.setConnectionTimeout(connectionTimeout);
-    clientConfiguration.setMaxErrorRetry(maxErrorRetry);
-    clientConfiguration.setConnectionTTL(connectionTTL);
-
-    EndpointConfiguration endpointConf = new EndpointConfiguration(endpoint, regionName);
-    s3Client = AmazonS3ClientBuilder
-            .standard()
-            .withPathStyleAccessEnabled(true)
-            .withEndpointConfiguration(endpointConf)
-            .withCredentials(new AWSStaticCredentialsProvider(new AnonymousAWSCredentials()))
-            .withClientConfiguration(clientConfiguration)
+    s3Client = S3Client.builder()
+          .credentialsProvider(AnonymousCredentialsProvider.create())
+          .httpClientBuilder(httpClientBuilder)
+          .endpointOverride(URI.create(endpoint))
+          .region(Region.of(regionName))
+          .serviceConfiguration(S3Configuration.builder().pathStyleAccessEnabled(true).build())
             .build();
 
-    transferManager = TransferManagerBuilder.standard().withS3Client(s3Client).build();
+    s3AsyncClient = S3AsyncClient.builder()
+            .credentialsProvider(AnonymousCredentialsProvider.create())
+            .endpointOverride(URI.create(endpoint))
+            .region(Region.of(regionName))
+            .multipartEnabled(true)
+            .multipartConfiguration(conf -> conf.thresholdInBytes(multipartUploadThreshold))
+            .serviceConfiguration(S3Configuration.builder().pathStyleAccessEnabled(true).build())
+            .build();
+
+    transferManager = S3TransferManager.builder().s3Client(s3AsyncClient).build();
   }
 
   public void setAccessKey(String accessKey) {
@@ -320,7 +340,7 @@ public class S3ContentStore extends AbstractContentStore
       if (LOG.isTraceEnabled()) {
         LOG.trace("Deleting object from S3 with url: " + contentUrl + ", key: " + key);
       }
-      s3Client.deleteObject(bucketName, key);
+      s3Client.deleteObject(DeleteObjectRequest.builder().bucket(bucketName).key(key).build());
       return true;
     } catch (Exception e) {
       if (LOG.isTraceEnabled()) {
