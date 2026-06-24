@@ -26,8 +26,6 @@ import java.util.Calendar;
 import java.util.Collections;
 import java.util.GregorianCalendar;
 import java.util.Map;
-import org.springframework.beans.factory.InitializingBean;
-import org.springframework.util.Assert;
 import software.amazon.awssdk.auth.credentials.AnonymousCredentialsProvider;
 import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
 import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
@@ -51,7 +49,7 @@ import software.amazon.awssdk.transfer.s3.S3TransferManager;
  * @author Marcus Svartmark - Redpill Linpro
  */
 public class S3ContentStore extends AbstractContentStore
-        implements ApplicationContextAware, ApplicationListener<ApplicationEvent>, InitializingBean {
+  implements ApplicationContextAware, ApplicationListener<ApplicationEvent> {
 
   private static final Log LOG = LogFactory.getLog(S3ContentStore.class);
   private ApplicationContext applicationContext;
@@ -67,8 +65,8 @@ public class S3ContentStore extends AbstractContentStore
   private String rootDirectory;
   private String endpoint;
   private String signatureVersion;
-  private int connectionTimeout = 50000;
-  private int maxErrorRetry = 5;
+  private int connectionTimeout = 10000;
+  private int maxErrorRetry = 1;
   private long connectionTTL = 60000L;
   private long multipartUploadThreshold = 16777216L;
 
@@ -141,6 +139,9 @@ public class S3ContentStore extends AbstractContentStore
           LOG.debug("AWS Credentials not specified in properties, will fallback to credentials provider");
         }
         credentialsProvider = ProfileCredentialsProvider.create();
+        // Preserve v1 behavior by forcing credential resolution during init and
+        // falling back to anonymous immediately if no profile credentials exist.
+        credentialsProvider.resolveCredentials();
       } catch (Exception e) {
         LOG.error("Can not find AWS Credentials. Trying anonymous.", e);
         credentialsProvider = AnonymousCredentialsProvider.create();
@@ -285,7 +286,7 @@ public class S3ContentStore extends AbstractContentStore
 
     String key = makeS3Key(contentUrl);
 
-    return new S3ContentWriter(bucketName, key, contentUrl, existingContentReader, s3Client, transferManager);
+    return new S3ContentWriter(bucketName, key, contentUrl, existingContentReader, s3Client, transferManager, multipartUploadThreshold);
 
   }
 
@@ -337,15 +338,13 @@ public class S3ContentStore extends AbstractContentStore
 
     try {
       String key = makeS3Key(contentUrl);
-      if (LOG.isTraceEnabled()) {
-        LOG.trace("Deleting object from S3 with url: " + contentUrl + ", key: " + key);
+      if (LOG.isDebugEnabled()) {
+        LOG.debug("Deleting object from S3 with url: " + contentUrl + ", key: " + key);
       }
       s3Client.deleteObject(DeleteObjectRequest.builder().bucket(bucketName).key(key).build());
       return true;
     } catch (Exception e) {
-      if (LOG.isTraceEnabled()) {
-        LOG.trace("Error deleting S3 Object", e);
-      }
+      LOG.error("Error deleting S3 Object", e);
     }
     return false;
   }
@@ -368,22 +367,5 @@ public class S3ContentStore extends AbstractContentStore
     if (event instanceof ContextRefreshedEvent && event.getSource() == this.applicationContext) {
       publishEvent(((ContextRefreshedEvent) event).getApplicationContext(), Collections.<String, Serializable>emptyMap());
     }
-  }
-
-  @Override
-  public void afterPropertiesSet() throws Exception {
-    Assert.notNull(accessKey);
-    Assert.notNull(secretKey);
-    Assert.notNull(bucketName);
-    Assert.notNull(regionName);
-    Assert.notNull(rootDirectory);
-    Assert.notNull(endpoint);
-    Assert.notNull(signatureVersion);
-    Assert.notNull(connectionTimeout);
-    Assert.notNull(connectionTTL);
-    Assert.isTrue(maxErrorRetry >= 0);
-    Assert.isTrue(connectionTTL >= 0);
-    Assert.isTrue(connectionTimeout >= 0);
-    Assert.isTrue(multipartUploadThreshold >= 0);
   }
 }

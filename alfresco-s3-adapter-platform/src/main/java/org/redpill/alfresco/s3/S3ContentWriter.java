@@ -27,16 +27,18 @@ public class S3ContentWriter extends AbstractContentWriter {
 
   private final S3Client client;
   private final S3TransferManager transferManager;
+  private final long multipartUploadThreshold;
   private final String key;
   private final String bucketName;
   private File tempFile;
   private long size;
 
-  public S3ContentWriter(String bucketName, String key, String contentUrl, ContentReader existingContentReader, S3Client client, S3TransferManager transferManager) {
+  public S3ContentWriter(String bucketName, String key, String contentUrl, ContentReader existingContentReader, S3Client client, S3TransferManager transferManager, long multipartUploadThreshold) {
     super(contentUrl, existingContentReader);
     this.key = key;
     this.client = client;
     this.transferManager = transferManager;
+    this.multipartUploadThreshold = multipartUploadThreshold;
     this.bucketName = bucketName;
     addListener(new S3WriteStreamListener(this));
   }
@@ -91,5 +93,9 @@ public class S3ContentWriter extends AbstractContentWriter {
 
   public S3TransferManager getTransferManager() {
     return transferManager;
+  }
+
+  public long getMultipartUploadThreshold() {
+    return multipartUploadThreshold;
   }
 }

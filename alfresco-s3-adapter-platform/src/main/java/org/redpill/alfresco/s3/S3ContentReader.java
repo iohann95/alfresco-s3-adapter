@@ -14,8 +14,6 @@ import software.amazon.awssdk.core.ResponseInputStream;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.GetObjectRequest;
 import software.amazon.awssdk.services.s3.model.GetObjectResponse;
-import software.amazon.awssdk.services.s3.model.HeadObjectRequest;
-import software.amazon.awssdk.services.s3.model.HeadObjectResponse;
 
 /**
  * S3 Content Reader
@@ -30,7 +28,7 @@ public class S3ContentReader extends AbstractContentReader implements AutoClosea
     private final S3Client s3Client;
     private final String bucket;
     private ResponseInputStream<GetObjectResponse> s3Object;
-    private HeadObjectResponse s3ObjectMetadata;
+    private GetObjectResponse s3ObjectMetadata;
 
     /**
      * @param key        the key to use when looking up data
@@ -83,13 +81,23 @@ public class S3ContentReader extends AbstractContentReader implements AutoClosea
                 LOG.trace("Lazy init for file metadata for " + bucket + " - " + key);
             }
 
-            if (s3Object != null) {
-                s3ObjectMetadata = s3Client.headObject(HeadObjectRequest.builder().bucket(bucket).key(key).build());
-            } else {
-                if (LOG.isDebugEnabled()) {
-                    LOG.debug("GETTING OBJECT METADATA - BUCKET: " + bucket + " KEY: " + key);
+            boolean resetFileObject = false;
+            if (s3Object == null) {
+                resetFileObject = true;
+            }
+            lazyInitFileObject();
+            try {
+                if (s3Object != null) {
+                    s3ObjectMetadata = s3Object.response();
                 }
-                s3ObjectMetadata = s3Client.headObject(HeadObjectRequest.builder().bucket(bucket).key(key).build());
+            } finally {
+                if (resetFileObject) {
+                    try {
+                        closeFileObject();
+                    } catch (IOException e) {
+                        throw new ContentIOException("Error fetching object metadata", e);
+                    }
+                }
             }
         }
     }
@@ -104,11 +112,7 @@ public class S3ContentReader extends AbstractContentReader implements AutoClosea
 
     @Override
     protected ReadableByteChannel getDirectReadableChannel() throws ContentIOException {
-        try {
-            lazyInitFileObject();
-        } catch (Exception e) {
-            throw new ContentIOException("Content object does not exist on S3", e);
-        }
+        lazyInitFileObject();
         if (!exists()) {
             throw new ContentIOException("Content object does not exist on S3");
         }
@@ -136,23 +140,13 @@ public class S3ContentReader extends AbstractContentReader implements AutoClosea
 
     @Override
     public boolean exists() {
-        try {
-            lazyInitFileMetadata();
-        } catch (Exception e) {
-            LOG.trace("Could not fetch metadata of object. It is probably removed.", e);
-            return false;
-        }
+        lazyInitFileMetadata();
         return s3ObjectMetadata != null;
     }
 
     @Override
     public long getLastModified() {
-        try {
-            lazyInitFileMetadata();
-        } catch (Exception e) {
-            LOG.trace("Could not fetch metadata of object. It is probably removed.", e);
-            return 0L;
-        }
+        lazyInitFileMetadata();
         if (!exists()) {
             return 0L;
         }
@@ -163,12 +157,7 @@ public class S3ContentReader extends AbstractContentReader implements AutoClosea
 
     @Override
     public long getSize() {
-        try {
-            lazyInitFileMetadata();
-        } catch (Exception e) {
-            LOG.trace("Could not fetch metadata of object. It is probably removed.", e);
-            return 0L;
-        }
+        lazyInitFileMetadata();
         if (!exists()) {
             return 0L;
         }
@@ -181,8 +170,8 @@ public class S3ContentReader extends AbstractContentReader implements AutoClosea
         ResponseInputStream<GetObjectResponse> object = null;
 
         try {
-            if (LOG.isTraceEnabled()) {
-                LOG.trace("GETTING OBJECT - BUCKET: " + bucket + " KEY: " + key);
+            if (LOG.isDebugEnabled()) {
+                LOG.debug("GETTING OBJECT - BUCKET: " + bucket + " KEY: " + key);
             }
             object = s3Client.getObject(GetObjectRequest.builder().bucket(bucket).key(key).build());
         } catch (Exception e) {
