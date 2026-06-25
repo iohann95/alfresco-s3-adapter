@@ -4,8 +4,8 @@ import org.alfresco.repo.content.AbstractContentReader;
 import org.alfresco.service.cmr.repository.ContentIOException;
 import org.alfresco.service.cmr.repository.ContentReader;
 import org.alfresco.service.cmr.repository.ContentStreamListener;
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import java.io.IOException;
 import java.nio.channels.Channels;
@@ -22,7 +22,7 @@ import software.amazon.awssdk.services.s3.model.GetObjectResponse;
  */
 public class S3ContentReader extends AbstractContentReader implements AutoCloseable {
 
-    private static final Log LOG = LogFactory.getLog(S3ContentReader.class);
+    private static final Logger LOG = LogManager.getLogger(S3ContentReader.class);
 
     private final String key;
     private final S3Client s3Client;

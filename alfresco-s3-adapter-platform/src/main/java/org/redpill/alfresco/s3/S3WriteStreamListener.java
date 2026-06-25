@@ -2,8 +2,8 @@ package org.redpill.alfresco.s3;
 
 import org.alfresco.service.cmr.repository.ContentIOException;
 import org.alfresco.service.cmr.repository.ContentStreamListener;
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import java.io.File;
 import java.io.FileInputStream;
@@ -27,7 +27,7 @@ import software.amazon.awssdk.services.s3.model.UploadPartResponse;
  */
 public class S3WriteStreamListener implements ContentStreamListener {
 
-  private static final Log LOG = LogFactory.getLog(S3WriteStreamListener.class);
+  private static final Logger LOG = LogManager.getLogger(S3WriteStreamListener.class);
   private static final int MIN_MULTIPART_PART_SIZE = 5 * 1024 * 1024;
 
   private final S3ContentWriter writer;

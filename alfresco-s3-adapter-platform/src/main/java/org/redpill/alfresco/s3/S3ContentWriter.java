@@ -5,8 +5,8 @@ import org.alfresco.service.cmr.repository.ContentIOException;
 import org.alfresco.service.cmr.repository.ContentReader;
 import org.alfresco.util.GUID;
 import org.alfresco.util.TempFileProvider;
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import java.io.File;
 import java.io.FileOutputStream;
@@ -23,7 +23,7 @@ import software.amazon.awssdk.transfer.s3.S3TransferManager;
  */
 public class S3ContentWriter extends AbstractContentWriter {
 
-  private static final Log LOG = LogFactory.getLog(S3ContentWriter.class);
+  private static final Logger LOG = LogManager.getLogger(S3ContentWriter.class);
 
   private final S3Client client;
   private final S3TransferManager transferManager;

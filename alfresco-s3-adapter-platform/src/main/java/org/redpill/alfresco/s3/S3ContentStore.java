@@ -10,8 +10,8 @@ import org.alfresco.service.cmr.repository.ContentWriter;
 import org.alfresco.util.GUID;
 import org.alfresco.util.Pair;
 import org.apache.commons.lang3.StringUtils;
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.springframework.beans.BeansException;
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.ApplicationContextAware;
@@ -51,7 +51,7 @@ import software.amazon.awssdk.transfer.s3.S3TransferManager;
 public class S3ContentStore extends AbstractContentStore
   implements ApplicationContextAware, ApplicationListener<ApplicationEvent> {
 
-  private static final Log LOG = LogFactory.getLog(S3ContentStore.class);
+  private static final Logger LOG = LogManager.getLogger(S3ContentStore.class);
   private ApplicationContext applicationContext;
 
   private S3Client s3Client;

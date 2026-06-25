@@ -167,10 +167,13 @@ defaultS3ContentCache.cachedcontent=/tmp/cachedcontent
 ```
  
 ## Troubleshooting ##
-Enable debug logging in log4j by adding these lines to your log4j.properties file
+Enable debug logging in Log4j2 by adding these lines to your log4j2.properties file
 
 ```
-log4j.logger.org.redpill.alfresco.s3=trace
-log4j.logger.com.amazonaws.requestId=debug
-log4j.logger.com.amazonaws.request=debug
+logger.s3.name=org.redpill.alfresco.s3
+logger.s3.level=trace
+logger.awsRequestId.name=com.amazonaws.requestId
+logger.awsRequestId.level=debug
+logger.awsRequest.name=com.amazonaws.request
+logger.awsRequest.level=debug
 ``` 
