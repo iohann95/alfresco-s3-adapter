@@ -1,3 +1,5 @@
+Nota: Projeto atualziado para ACS 25.3
+
 # Alfresco S3 Adapter
 
 This project is meant to provide tools to use s3 as a storage solution for Alfresco. It can be configured to work as a main content store if you are a community user. If you are an enterprise customer you can configure it to work with content store selector or as a main content store.
